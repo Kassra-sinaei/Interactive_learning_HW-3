@@ -41,9 +41,12 @@ class DataProviders(EnvironmentBase):
         action -= 5  # 0-> B buys vacancy from A
                      # 5-> neither of companies buy vacancy
                      # 10-> A buys 5 vacancies from B
+        # Penalize agent for duing invalid actions
+        if self.state['current_state'][0] - action > 20 or self.state['current_state'][0] - action < 0\
+                or self.state['current_state'][1] + action > 20 or self.state['current_state'][1] + action < 0:
+            return -10000
         # New state after selling or Buying from another company
-        new_state = [max(min(self.state['current_state'][0] - action, self.max_customer),0),
-                     max(min(self.state['current_state'][1] - action, self.max_customer), 0)]
+        new_state = [self.state['current_state'][0] - action, self.state['current_state'][1] + action]
 
         reward += -self.penalty * abs(action) # This value is always negative and is cost of selling or buying vacancy
 
@@ -52,9 +55,17 @@ class DataProviders(EnvironmentBase):
                 for a_terminated in range(self.a_termination.min,self.a_termination.max):
                     for b_terminated in range(self.b_termination.min,self.b_termination.max):
 
+                        if new_state[0] - a_terminated < 0 or new_state[1] - b_terminated < 0:
+                            continue
+
                         prob = self.a_contract.vals[a_new] * self.b_contract.vals[b_new] * \
                                self.a_termination.vals[a_terminated] * self.b_termination.vals[b_terminated]
-
+                        # Check if Companies can accept more customers or not
+                        if new_state[0] + a_new > 20:
+                            reward -= 5 * (20 - a_new + next_state[0])
+                        if new_state[1] + b_new > 20:
+                            reward -= 5 * (20 - b_new + next_state[0])
+                        # Rest of the calculations based on companies maximum capacity
                         max_contract_a = min(new_state[0], a_new)
                         max_contract_b = min(new_state[1],b_new)
 

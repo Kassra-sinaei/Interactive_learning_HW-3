@@ -1,6 +1,7 @@
 from agent import Agent
 from data_provider import DataProviders
 from poisson import Poisson
+import seaborn as sns
 import matplotlib.pyplot as plt
 import time
 
@@ -18,9 +19,10 @@ def train(agent):
     print("State Values:\n", agent.environment.V)
     print("Optimal Policy:\n", agent.policy)
 
-    plt.imshow(agent.V, cmap='hot', interpolation='nearest')
+    # drawing heatmaps of state values and policy
+    ax1 = sns.heatmap(agent.policy, center=0)
     plt.show()
-    plt.imshow(agent.policy, cmap='hot', interpolation='nearest')
+    ax2 = sns.heatmap(agent.environment.V)
     plt.show()
 
 if __name__ == "__main__":
@@ -30,5 +32,5 @@ if __name__ == "__main__":
     print('hi')
     start = time.time()
     train(agent)
-    print((time.time() - start)/60)
+    print("Total Execution time = ",(time.time() - start)/60, "Minutes")
     pass
