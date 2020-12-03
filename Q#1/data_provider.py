@@ -3,7 +3,7 @@ import gym
 import numpy as np
 
 class DataProviders(EnvironmentBase):
-    def __init__(self, reward, episode_max_length, id, max_customer_number, income, penalty, Lambdas,
+    def __init__(self, reward, episode_max_length, id, max_customer_number, income, penalty, Lambdas, gamma,
                  container=None):
         # Lambda is a list containing lambda values for company A & B respectively(2x2 list)
         state_space = gym.spaces.MultiDiscrete([21,21])
@@ -27,42 +27,47 @@ class DataProviders(EnvironmentBase):
         self.a_termination = reward(Lambdas[0][1])  # Poisson random number generator for terminated contracts @ A
         self.b_contract = reward(Lambdas[1][0])     # Poisson random number generator for new contracts @ B
         self.b_termination = reward(Lambdas[1][1])  # Poisson random number generator for terminated contracts @ A
+        self.discount_factor = gamma
+        self.V = np.zeros((self.max_customer + 1, self.max_customer + 1))
 
     def calculate_reward(self, action):
+        ########################################################
+        ###      This method takes care of calculating       ###
+        ###     return of input action, before calling it    ###
+        ###   remember to set state to desired state using   ###
+        ###                 go_to_state(i,j)                 ###
+        ########################################################
         reward = 0
         action -= 5  # 0-> B buys vacancy from A
                      # 5-> neither of companies buy vacancy
                      # 10-> A buys 5 vacancies from B
         # New state after selling or Buying from another company
-        self.state['current_state'][0] = max(min(self.state['current_state'][0] - action, self.max_customer),0)
-        self.state['current_state'][1] = max(min(self.state['current_state'][1] - action, self.max_customer), 0)
+        new_state = [max(min(self.state['current_state'][0] - action, self.max_customer),0),
+                     max(min(self.state['current_state'][1] - action, self.max_customer), 0)]
 
         reward += -self.penalty * abs(action) # This value is always negative and is cost of selling or buying vacancy
-        r = list('')
-        prob = list('')
-        next_a = list('')
-        next_b= list('')
+
         for a_new in range(self.a_contract.min,self.a_contract.max):
             for b_new in range(self.b_contract.min, self.b_contract.max):
                 for a_terminated in range(self.a_termination.min,self.a_termination.max):
                     for b_terminated in range(self.b_termination.min,self.b_termination.max):
 
-                        prob.append(self.a_contract.vals[a_new] * self.b_contract.vals[b_new] * \
-                               self.a_termination.vals[a_terminated] * self.b_termination.vals[b_terminated])
+                        prob = self.a_contract.vals[a_new] * self.b_contract.vals[b_new] * \
+                               self.a_termination.vals[a_terminated] * self.b_termination.vals[b_terminated]
 
-                        max_contract_a = min(self.state['current_state'][0], a_new)
-                        max_contract_b = min(self.state['current_state'][1],b_new)
+                        max_contract_a = min(new_state[0], a_new)
+                        max_contract_b = min(new_state[1],b_new)
 
-                        r.append((max_contract_a + max_contract_b) * self.income)
+                        r = (max_contract_a + max_contract_b) * self.income
 
                         #new state after signing and terminating contracts
-                        self.state['current_state'][0] = max(min(self.state['current_state'][0] - max_contract_a + a_terminated, self.max_customer),0)
-                        self.state['current_state'][1] = max(min(self.state['current_state'][1] - max_contract_b + b_terminated, self.max_customer), 0)
-                        next_a.append(self.state['current_state'][0])
-                        next_b.append(self.state['current_state'][1])
+                        next_state = [max(min(new_state[0] - max_contract_a + a_terminated, self.max_customer),0),
+                                      max(min(new_state[1] - max_contract_b + b_terminated, self.max_customer), 0)]
+
+                        reward += prob * (r + self.discount_factor * self.V[next_state[0]][next_state[1]])
 
 
-        return reward,np.array(r), np.array(prob),next_a, next_b
+        return reward
 
     # This method is implemented for switching between states during dynamic programing
     def go_to_state(self, a, b):
